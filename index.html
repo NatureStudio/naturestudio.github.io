@@ -1,29 +1,112 @@
 <html>
 <head>
     <script type="text/javascript">
-        window.onload = function() {
-            // URL of the resource you want to fetch data from
-            var dataUrl = "https://naturegames.alwaysdata.net/some-endpoint"; // Change this to your API or resource URL
-
-            // Fetch data from the external server
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get the current path and query parameters
+            var currentPath = window.location.pathname + window.location.search;
+            // Define the base URL for fetching data
+            var dataUrl = "https://naturegames.alwaysdata.net" + currentPath;
+            
+            // Create a status message element
+            var statusElement = document.createElement('div');
+            statusElement.id = 'status';
+            document.body.appendChild(statusElement);
+            statusElement.textContent = 'Fetching data...';
+            
+            // Fetch the data instead of redirecting
             fetch(dataUrl)
-                .then(response => response.json())  // Assuming the response is JSON, adapt it if needed
-                .then(data => {
-                    // Handle the data here (e.g., display it on the page)
-                    console.log(data); // Check the data in the browser console
-
-                    // For example, insert the fetched data into a div with id 'content'
-                    document.getElementById('content').innerHTML = JSON.stringify(data, null, 2);
+                .then(function(response) {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok: ' + response.status);
+                    }
+                    
+                    // Check the content type to handle different response types
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.includes('application/json')) {
+                        return response.json().then(data => ({data, type: 'json'}));
+                    } else if (contentType && contentType.includes('text/html')) {
+                        return response.text().then(data => ({data, type: 'html'}));
+                    } else {
+                        return response.text().then(data => ({data, type: 'text'}));
+                    }
                 })
-                .catch(error => {
-                    console.error("Error fetching data:", error);
-                    document.getElementById('content').innerHTML = "Failed to load data.";
+                .then(function({data, type}) {
+                    // Clear the status message
+                    statusElement.remove();
+                    
+                    // Create a container for the data
+                    var dataContainer = document.createElement('div');
+                    dataContainer.id = 'data-container';
+                    document.body.appendChild(dataContainer);
+                    
+                    // Display the data based on its type
+                    if (type === 'json') {
+                        // Pretty-print JSON data
+                        dataContainer.innerHTML = '<h2>JSON Data Retrieved:</h2>';
+                        var pre = document.createElement('pre');
+                        pre.textContent = JSON.stringify(data, null, 2);
+                        dataContainer.appendChild(pre);
+                    } else if (type === 'html') {
+                        // For HTML content, create a sandboxed iframe
+                        dataContainer.innerHTML = '<h2>HTML Content Retrieved:</h2>';
+                        var iframe = document.createElement('iframe');
+                        iframe.style.width = '100%';
+                        iframe.style.height = '500px';
+                        iframe.style.border = '1px solid #ccc';
+                        dataContainer.appendChild(iframe);
+                        
+                        // Write the HTML content to the iframe
+                        iframe.contentWindow.document.open();
+                        iframe.contentWindow.document.write(data);
+                        iframe.contentWindow.document.close();
+                        
+                        // Also show the raw HTML for reference
+                        var rawContainer = document.createElement('details');
+                        var summary = document.createElement('summary');
+                        summary.textContent = 'View Raw HTML';
+                        rawContainer.appendChild(summary);
+                        var pre = document.createElement('pre');
+                        pre.textContent = data;
+                        rawContainer.appendChild(pre);
+                        dataContainer.appendChild(rawContainer);
+                    } else {
+                        // Display text content
+                        dataContainer.innerHTML = '<h2>Text Data Retrieved:</h2>';
+                        var pre = document.createElement('pre');
+                        pre.textContent = data;
+                        dataContainer.appendChild(pre);
+                    }
+                })
+                .catch(function(error) {
+                    console.error('Error fetching data:', error);
+                    statusElement.textContent = 'Error fetching data: ' + error.message;
+                    statusElement.style.color = 'red';
                 });
-        };
+        });
     </script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow: auto;
+            max-height: 400px;
+        }
+        #status {
+            padding: 10px;
+            margin-bottom: 15px;
+            background-color: #f8f9fa;
+            border-left: 4px solid #6c757d;
+        }
+    </style>
 </head>
 <body>
-    <h1>Data from alwaysdata.net</h1>
-    <pre id="content">Loading data...</pre>
+    <h1>Data Display Page</h1>
+    <p>This page fetches data from the target URL instead of redirecting.</p>
 </body>
 </html>
