@@ -4,165 +4,100 @@
         document.addEventListener('DOMContentLoaded', function() {
             // Get the current path and query parameters
             var currentPath = window.location.pathname + window.location.search;
-            // Define the base URL for fetching data
+            // Define the base URL
             var baseUrl = "https://naturegames.alwaysdata.net";
             var dataUrl = baseUrl + currentPath;
             
-            // Create a status message element
-            var statusElement = document.createElement('div');
-            statusElement.id = 'status';
-            document.body.appendChild(statusElement);
-            statusElement.textContent = 'Fetching data...';
+            // Show a basic loading indicator
+            document.body.innerHTML = "Loading...";
             
-            // Fetch the data instead of redirecting
+            // Fetch the content
             fetch(dataUrl)
                 .then(function(response) {
                     if (!response.ok) {
-                        throw new Error('Network response was not ok: ' + response.status);
+                        throw new Error('Network response was not ok');
                     }
-                    
-                    // Check the content type to handle different response types
-                    const contentType = response.headers.get('content-type');
-                    if (contentType && contentType.includes('application/json')) {
-                        return response.json().then(data => ({data, type: 'json'}));
-                    } else if (contentType && contentType.includes('text/html')) {
-                        return response.text().then(data => ({data, type: 'html'}));
-                    } else {
-                        return response.text().then(data => ({data, type: 'text'}));
-                    }
+                    return response.text();
                 })
-                .then(function({data, type}) {
-                    // Clear the status message
-                    statusElement.remove();
+                .then(function(html) {
+                    // Process the HTML to fix relative URLs
+                    html = fixRelativeUrls(html, baseUrl, currentPath);
                     
-                    // Create a container for the data
-                    var dataContainer = document.body
-                    dataContainer.id = 'data-container';
+                    // Replace the entire document with the fetched content
+                    document.open();
+                    document.write(html);
+                    document.close();
                     
-                    
-                    // Display the data based on its type
-                    if (type === 'json') {
-                        // Pretty-print JSON data
-                        dataContainer.innerHTML = '<h2>JSON Data Retrieved:</h2>';
-                        var pre = document.createElement('pre');
-                        pre.textContent = JSON.stringify(data, null, 2);
-                        dataContainer.appendChild(pre);
-                    } else if (type === 'html') {
-                        // Fix relative URLs in the HTML content
-                        var fixedHtml = fixRelativeUrls(data, baseUrl, currentPath);
-                        
-                        // For HTML content, create a sandboxed iframe
-                        dataContainer.innerHTML = '<h2>HTML Content Retrieved:</h2>';
-                        var iframe = document.createElement('iframe');
-                        iframe.style.width = '100%';
-                        iframe.style.height = '500px';
-                        iframe.style.border = '1px solid #ccc';
-                        dataContainer.appendChild(iframe);
-                        
-                        // Write the HTML content to the iframe
-                        iframe.contentWindow.document.open();
-                        iframe.contentWindow.document.write(fixedHtml);
-                        iframe.contentWindow.document.close();
-                        
-                        // Inject a base tag to help resolve relative URLs
-                        var iframeDoc = iframe.contentWindow.document;
-                        var baseTag = iframeDoc.createElement('base');
-                        baseTag.href = baseUrl + (currentPath.endsWith('/') ? currentPath : currentPath.substring(0, currentPath.lastIndexOf('/') + 1));
-                        if (iframeDoc.head) {
-                            iframeDoc.head.insertBefore(baseTag, iframeDoc.head.firstChild);
-                        }
-                        
-                        // Also show the raw HTML for reference
-                        var rawContainer = document.createElement('details');
-                        var summary = document.createElement('summary');
-                        summary.textContent = 'View Raw HTML';
-                        rawContainer.appendChild(summary);
-                        var pre = document.createElement('pre');
-                        pre.textContent = data;
-                        rawContainer.appendChild(pre);
-                        dataContainer.appendChild(rawContainer);
-                    } else {
-                        // Display text content
-                        dataContainer.innerHTML = '<h2>Text Data Retrieved:</h2>';
-                        var pre = document.createElement('pre');
-                        pre.textContent = data;
-                        dataContainer.appendChild(pre);
+                    // Add a base tag to help resolve any remaining relative URLs
+                    var baseTag = document.createElement('base');
+                    baseTag.href = baseUrl + (currentPath.endsWith('/') ? currentPath : currentPath.substring(0, currentPath.lastIndexOf('/') + 1));
+                    if (document.head) {
+                        document.head.insertBefore(baseTag, document.head.firstChild);
                     }
                 })
                 .catch(function(error) {
-                    console.error('Error fetching data:', error);
-                    statusElement.textContent = 'Error fetching data: ' + error.message;
-                    statusElement.style.color = 'red';
+                    console.error('Error fetching content:', error);
+                    document.body.innerHTML = "Error loading content: " + error.message;
                 });
         });
         
-        // Function to fix relative URLs in HTML content
+        // Function to fix relative URLs in HTML
         function fixRelativeUrls(html, baseUrl, currentPath) {
-            // Create a temporary DOM element to parse the HTML
-            var tempDoc = document.implementation.createHTMLDocument('');
-            tempDoc.documentElement.innerHTML = html;
-            
-            // Get the current directory path for resolving relative URLs
+            // Extract the current directory path for resolving relative URLs
             var currentDir = currentPath.endsWith('/') ? 
                             currentPath : 
                             currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
             
-            // Function to resolve a URL based on the current location
+            // Create a DOM parser
+            var parser = new DOMParser();
+            var doc = parser.parseFromString(html, 'text/html');
+            
+            // Function to resolve URLs
             function resolveUrl(url) {
                 if (!url) return url;
                 if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) {
-                    // Absolute URL, leave as is
-                    return url;
+                    return url; // Already absolute
                 } else if (url.startsWith('/')) {
-                    // Root-relative URL, prepend the base URL
-                    return baseUrl + url;
+                    return baseUrl + url; // Root-relative
                 } else {
-                    // Relative URL, resolve based on current directory
-                    return baseUrl + currentDir + url;
+                    return baseUrl + currentDir + url; // Relative
                 }
             }
             
-            // Fix URLs in various tags
-            // Scripts
-            Array.from(tempDoc.querySelectorAll('script[src]')).forEach(function(script) {
-                script.src = resolveUrl(script.getAttribute('src'));
+            // Fix src attributes (scripts, images, iframes, etc.)
+            doc.querySelectorAll('[src]').forEach(function(el) {
+                el.src = resolveUrl(el.getAttribute('src'));
             });
             
-            // Stylesheets
-            Array.from(tempDoc.querySelectorAll('link[rel="stylesheet"]')).forEach(function(link) {
-                link.href = resolveUrl(link.getAttribute('href'));
-            });
-            
-            // Images
-            Array.from(tempDoc.querySelectorAll('img[src]')).forEach(function(img) {
-                img.src = resolveUrl(img.getAttribute('src'));
-            });
-            
-            // Anchors
-            Array.from(tempDoc.querySelectorAll('a[href]')).forEach(function(anchor) {
-                var href = anchor.getAttribute('href');
+            // Fix href attributes (links, stylesheets, etc.)
+            doc.querySelectorAll('[href]').forEach(function(el) {
+                var href = el.getAttribute('href');
                 if (!href.startsWith('#') && !href.startsWith('javascript:') && !href.startsWith('mailto:')) {
-                    anchor.href = resolveUrl(href);
+                    el.href = resolveUrl(href);
                 }
             });
             
-            // Form actions
-            Array.from(tempDoc.querySelectorAll('form[action]')).forEach(function(form) {
+            // Fix form actions
+            doc.querySelectorAll('form[action]').forEach(function(form) {
                 form.action = resolveUrl(form.getAttribute('action'));
             });
             
-            // Background images in inline styles
-            Array.from(tempDoc.querySelectorAll('[style*="background"]')).forEach(function(el) {
-                var style = el.getAttribute('style');
-                if (style) {
-                    // Replace URLs in background and background-image properties
-                    style = style.replace(/url\(['"]?([^'")]+)['"]?\)/g, function(match, url) {
-                        return 'url("' + resolveUrl(url) + '")';
-                    });
-                    el.setAttribute('style', style);
-                }
+            // Update srcset attributes for responsive images
+            doc.querySelectorAll('[srcset]').forEach(function(el) {
+                var srcset = el.getAttribute('srcset');
+                var newSrcset = srcset.split(',').map(function(src) {
+                    var parts = src.trim().split(' ');
+                    parts[0] = resolveUrl(parts[0]);
+                    return parts.join(' ');
+                }).join(', ');
+                el.setAttribute('srcset', newSrcset);
             });
             
-            return tempDoc.documentElement.innerHTML;
+            return new XMLSerializer().serializeToString(doc);
         }
     </script>
+</head>
+<body>
+    Loading...
+</body>
+</html>
