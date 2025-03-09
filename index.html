@@ -36,9 +36,9 @@
                     statusElement.remove();
                     
                     // Create a container for the data
-                    var dataContainer = document.createElement('div');
+                    var dataContainer = document.body
                     dataContainer.id = 'data-container';
-                    document.body.appendChild(dataContainer);
+                    
                     
                     // Display the data based on its type
                     if (type === 'json') {
@@ -166,29 +166,3 @@
             return tempDoc.documentElement.innerHTML;
         }
     </script>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            line-height: 1.6;
-        }
-        pre {
-            background-color: #f5f5f5;
-            padding: 10px;
-            border-radius: 5px;
-            overflow: auto;
-            max-height: 400px;
-        }
-        #status {
-            padding: 10px;
-            margin-bottom: 15px;
-            background-color: #f8f9fa;
-            border-left: 4px solid #6c757d;
-        }
-    </style>
-</head>
-<body>
-    <h1>Data Display Page</h1>
-    <p>This page fetches data from the target URL instead of redirecting.</p>
-</body>
-</html>
