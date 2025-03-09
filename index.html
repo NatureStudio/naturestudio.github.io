@@ -1,16 +1,29 @@
 <html>
 <head>
     <script type="text/javascript">
-        // Get the current path and query parameters
-        var currentPath = window.location.pathname + window.location.search;
+        window.onload = function() {
+            // URL of the resource you want to fetch data from
+            var dataUrl = "https://naturegames.alwaysdata.net/some-endpoint"; // Change this to your API or resource URL
 
-        // Define the base URL for the redirection
-        var redirectBase = "https://naturegames.alwaysdata.net";
+            // Fetch data from the external server
+            fetch(dataUrl)
+                .then(response => response.json())  // Assuming the response is JSON, adapt it if needed
+                .then(data => {
+                    // Handle the data here (e.g., display it on the page)
+                    console.log(data); // Check the data in the browser console
 
-        // Perform the redirection, appending the current path and query parameters
-        window.location.replace(redirectBase + currentPath);
+                    // For example, insert the fetched data into a div with id 'content'
+                    document.getElementById('content').innerHTML = JSON.stringify(data, null, 2);
+                })
+                .catch(error => {
+                    console.error("Error fetching data:", error);
+                    document.getElementById('content').innerHTML = "Failed to load data.";
+                });
+        };
     </script>
 </head>
 <body>
+    <h1>Data from alwaysdata.net</h1>
+    <pre id="content">Loading data...</pre>
 </body>
 </html>
