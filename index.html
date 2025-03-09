@@ -5,7 +5,8 @@
             // Get the current path and query parameters
             var currentPath = window.location.pathname + window.location.search;
             // Define the base URL for fetching data
-            var dataUrl = "https://naturegames.alwaysdata.net" + currentPath;
+            var baseUrl = "https://naturegames.alwaysdata.net";
+            var dataUrl = baseUrl + currentPath;
             
             // Create a status message element
             var statusElement = document.createElement('div');
@@ -47,6 +48,9 @@
                         pre.textContent = JSON.stringify(data, null, 2);
                         dataContainer.appendChild(pre);
                     } else if (type === 'html') {
+                        // Fix relative URLs in the HTML content
+                        var fixedHtml = fixRelativeUrls(data, baseUrl, currentPath);
+                        
                         // For HTML content, create a sandboxed iframe
                         dataContainer.innerHTML = '<h2>HTML Content Retrieved:</h2>';
                         var iframe = document.createElement('iframe');
@@ -57,8 +61,16 @@
                         
                         // Write the HTML content to the iframe
                         iframe.contentWindow.document.open();
-                        iframe.contentWindow.document.write(data);
+                        iframe.contentWindow.document.write(fixedHtml);
                         iframe.contentWindow.document.close();
+                        
+                        // Inject a base tag to help resolve relative URLs
+                        var iframeDoc = iframe.contentWindow.document;
+                        var baseTag = iframeDoc.createElement('base');
+                        baseTag.href = baseUrl + (currentPath.endsWith('/') ? currentPath : currentPath.substring(0, currentPath.lastIndexOf('/') + 1));
+                        if (iframeDoc.head) {
+                            iframeDoc.head.insertBefore(baseTag, iframeDoc.head.firstChild);
+                        }
                         
                         // Also show the raw HTML for reference
                         var rawContainer = document.createElement('details');
@@ -83,6 +95,76 @@
                     statusElement.style.color = 'red';
                 });
         });
+        
+        // Function to fix relative URLs in HTML content
+        function fixRelativeUrls(html, baseUrl, currentPath) {
+            // Create a temporary DOM element to parse the HTML
+            var tempDoc = document.implementation.createHTMLDocument('');
+            tempDoc.documentElement.innerHTML = html;
+            
+            // Get the current directory path for resolving relative URLs
+            var currentDir = currentPath.endsWith('/') ? 
+                            currentPath : 
+                            currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
+            
+            // Function to resolve a URL based on the current location
+            function resolveUrl(url) {
+                if (!url) return url;
+                if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) {
+                    // Absolute URL, leave as is
+                    return url;
+                } else if (url.startsWith('/')) {
+                    // Root-relative URL, prepend the base URL
+                    return baseUrl + url;
+                } else {
+                    // Relative URL, resolve based on current directory
+                    return baseUrl + currentDir + url;
+                }
+            }
+            
+            // Fix URLs in various tags
+            // Scripts
+            Array.from(tempDoc.querySelectorAll('script[src]')).forEach(function(script) {
+                script.src = resolveUrl(script.getAttribute('src'));
+            });
+            
+            // Stylesheets
+            Array.from(tempDoc.querySelectorAll('link[rel="stylesheet"]')).forEach(function(link) {
+                link.href = resolveUrl(link.getAttribute('href'));
+            });
+            
+            // Images
+            Array.from(tempDoc.querySelectorAll('img[src]')).forEach(function(img) {
+                img.src = resolveUrl(img.getAttribute('src'));
+            });
+            
+            // Anchors
+            Array.from(tempDoc.querySelectorAll('a[href]')).forEach(function(anchor) {
+                var href = anchor.getAttribute('href');
+                if (!href.startsWith('#') && !href.startsWith('javascript:') && !href.startsWith('mailto:')) {
+                    anchor.href = resolveUrl(href);
+                }
+            });
+            
+            // Form actions
+            Array.from(tempDoc.querySelectorAll('form[action]')).forEach(function(form) {
+                form.action = resolveUrl(form.getAttribute('action'));
+            });
+            
+            // Background images in inline styles
+            Array.from(tempDoc.querySelectorAll('[style*="background"]')).forEach(function(el) {
+                var style = el.getAttribute('style');
+                if (style) {
+                    // Replace URLs in background and background-image properties
+                    style = style.replace(/url\(['"]?([^'")]+)['"]?\)/g, function(match, url) {
+                        return 'url("' + resolveUrl(url) + '")';
+                    });
+                    el.setAttribute('style', style);
+                }
+            });
+            
+            return tempDoc.documentElement.innerHTML;
+        }
     </script>
     <style>
         body {
